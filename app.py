@@ -8,13 +8,21 @@ import pandas as pd
 import altair as alt
 from threading import Thread
 
-# Inject CSS to remove left padding
+
+# st.set_page_config(layout="centered")
+st.set_page_config(
+    page_title="Demo",
+    layout="wide")
+# Inject CSS to st right/left padding
 st.markdown("""
     <style>
         .block-container {
-            padding-left: 0rem !important;
-            padding-right: 0rem !important;
+            padding-top: 1rem;
+            padding-bottom: 0rem;
+            padding-left: 2rem !important;
+            padding-right: 2rem !important;
         }
+}
     </style>
 """, unsafe_allow_html=True)
 
@@ -24,11 +32,11 @@ def generate_image_from_text(prompt, model):
     if model == "flux_12b":
         time.sleep(5)
         # Dummy image (replace this with your actual image generation model output)
-        img = Image.new("RGB", (512, 512), color="lightblue")
+        img = Image.new("RGB", (1024, 1024), color="lightblue")
     else:
         time.sleep(1)
         # Dummy image (replace this with your actual image generation model output)
-        img = Image.new("RGB", (512, 512), color="green")
+        img = Image.new("RGB", (1024, 1024), color="green")
     return img
 
 # Sample data for stacked bar chart
@@ -50,22 +58,32 @@ chart = alt.Chart(data).mark_bar().encode(
 )
 
 # Function to create a gray placeholder image
-def gray_placeholder_image(size=(512, 512)) -> Image.Image:
+def gray_placeholder_image(size=(1024, 1024)) -> Image.Image:
     return Image.new("RGB", size, color="gray")
+def white_placeholder_image(size=(1024, 1024)) -> Image.Image:
+    return Image.new("RGB", size, color="white")
 
 # --- Streamlit UI ---
-st.title("Demo: LVM Foundation Model")
+# st.title("Demo: LVM Foundation Model")
 
 # Input
-prompt = st.text_area("Enter text to generate image:", "")
-generate_btn = st.button("Generate Image")
+col1, col2, col3 = st.columns([1, 2, 1])
+with col1:
+    st.text("")
+    # st.title("***LVM Demo***")
+    st.markdown('<div style="text-align: center; font-size: 40px; font-style: italic; ">LVM Demo</div>', unsafe_allow_html=True)
+with col2:
+    prompt = st.text_area("", "", placeholder="Enter prompt", height=68)
+with col3:
+    st.image(white_placeholder_image(), caption="", width=25)
+    generate_btn = st.button("Generate Image")
 
 # Processing and status update fields
 processing_spinner = st.empty()
 status_update = st.empty()
 
 # Image display placeholder
-col1, col2, col3 = st.columns([3, 3, 2])
+col1, col2, col3 = st.columns([2, 2, 2])
 with col1:
     image_slot_flux_12b = st.empty()
     image_slot_sd35 = st.empty()
@@ -74,14 +92,15 @@ with col2:
     image_slot_sd35_edit = st.empty()
 with col3:
     # Show chart
-    st.altair_chart(chart, use_container_width=False)
+    st.image(white_placeholder_image(), caption="", width=150)
+    st.altair_chart(chart, use_container_width=True)
 
 # Show gray placeholder initially
 placeholder_image = gray_placeholder_image()
-image_slot_flux_12b.image(placeholder_image, caption="Flux 12B", width=250)
-image_slot_flux_5b.image(placeholder_image, caption="Flux 5B", width=250)
-image_slot_sd35.image(placeholder_image, caption="SD 3.5M", width=250)
-image_slot_sd35_edit.image(placeholder_image, caption="SD 3.5M EDiT", width=250)
+image_slot_flux_12b.image(placeholder_image, caption="Flux 12B", width=300)
+image_slot_flux_5b.image(placeholder_image, caption="Flux 5B", width=300)
+image_slot_sd35.image(placeholder_image, caption="SD 3.5M", width=300)
+image_slot_sd35_edit.image(placeholder_image, caption="SD 3.5M EDiT", width=300)
 
 
 
@@ -95,7 +114,7 @@ class DisplayImage(Thread):
 
     def run(self):
         img = generate_image_from_text(self.prompt, self.model)
-        # st_img.image(img, caption=model, width=250)
+        # st_img.image(img, caption=model, width=300)
         self.return_value = (img, self.model, self.st_img)
 
 
@@ -116,10 +135,10 @@ if generate_btn:
             if thread_lives[i] and not thread.is_alive():
                 img, model, st_img = thread.return_value
                 # with result_containers[i]:
-                st_img.image(img, caption=model, width=250)
+                st_img.image(img, caption=model, width=300)
                 # result_containers[i].write(thread.return_value)
                 thread_lives[i] = False
-        time.sleep(1)
+        time.sleep(0.1)
 
     for thread in threads:
         thread.join()
