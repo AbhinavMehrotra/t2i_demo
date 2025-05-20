@@ -4,14 +4,50 @@ import time
 import requests  # For making API calls (if needed)
 import io       # For handling image bytes
 import numpy as np
+import pandas as pd
+import altair as alt
+from threading import Thread
+
+# Inject CSS to remove left padding
+st.markdown("""
+    <style>
+        .block-container {
+            padding-left: 0rem !important;
+            padding-right: 0rem !important;
+        }
+    </style>
+""", unsafe_allow_html=True)
 
 # --- Function to interact with the image generation model ---
 # This is a placeholder. You'll need to replace this with your actual logic
 def generate_image_from_text(prompt, model):
-    time.sleep(1)
-    # Dummy image (replace this with your actual image generation model output)
-    img = Image.new("RGB", (512, 512), color="lightblue")
+    if model == "flux_12b":
+        time.sleep(5)
+        # Dummy image (replace this with your actual image generation model output)
+        img = Image.new("RGB", (512, 512), color="lightblue")
+    else:
+        time.sleep(1)
+        # Dummy image (replace this with your actual image generation model output)
+        img = Image.new("RGB", (512, 512), color="green")
     return img
+
+# Sample data for stacked bar chart
+data = pd.DataFrame({
+    'Model': ['Flux 12B', 'Flux 12B', 'Flux 5B', 'Flux 5B', 'SD v3.5M', 'SD v3.5M', 'SD v3.5M Edit', 'SD v3.5M Edit'],
+    'Component': ['X', 'Y', 'X', 'Y', 'X', 'Y', 'X', 'Y'],
+    'Latency': [10, 15, 20, 5, 30, 10, 30, 10]
+})
+
+# Create stacked bar chart
+chart = alt.Chart(data).mark_bar().encode(
+    x=alt.X('Model:N', axis=alt.Axis(labelAngle=-45)),
+    y='Latency:Q',
+    color='Component:N'
+).properties(
+    width=500,
+    height=400,
+    title='Latency per inference'
+)
 
 # Function to create a gray placeholder image
 def gray_placeholder_image(size=(512, 512)) -> Image.Image:
@@ -29,13 +65,16 @@ processing_spinner = st.empty()
 status_update = st.empty()
 
 # Image display placeholder
-col1, col2 = st.columns([1, 1])
+col1, col2, col3 = st.columns([3, 3, 2])
 with col1:
     image_slot_flux_12b = st.empty()
     image_slot_sd35 = st.empty()
 with col2:
     image_slot_flux_5b = st.empty()
     image_slot_sd35_edit = st.empty()
+with col3:
+    # Show chart
+    st.altair_chart(chart, use_container_width=False)
 
 # Show gray placeholder initially
 placeholder_image = gray_placeholder_image()
@@ -45,23 +84,61 @@ image_slot_sd35.image(placeholder_image, caption="SD 3.5M", width=250)
 image_slot_sd35_edit.image(placeholder_image, caption="SD 3.5M EDiT", width=250)
 
 
-if generate_btn:
-    if prompt:
-        # Display a processing message
-        with st.spinner("Generating image..."):
-            image_slot_flux_12b.image(placeholder_image, caption="", width=250)
-            image_slot_flux_5b.image(placeholder_image, caption="", width=250)
-            try:
-                generated_image_flux_12b = generate_image_from_text(prompt, "flux_12b")
-                generated_image_flux_5b = generate_image_from_text(prompt, "flux_5b")
-                status_update.success("Image generated successfully!")
-                image_slot_flux_12b.image(generated_image_flux_12b, caption=f"Flux 12B", width=250)
-                image_slot_flux_5b.image(generated_image_flux_5b, caption=f"Flux 5B", width=250)
-            except requests.exceptions.RequestException as e:
-                st.error(f"Error fetching placeholder image: {e}")
-            except Exception as e:
-                st.error(f"An error occurred during image generation: {e}")
-    else:
-        st.warning("Please enter some text.")
 
+
+class DisplayImage(Thread):
+    def __init__(self, prompt, model, st_img):
+        super().__init__()
+        self.prompt = prompt
+        self.model = model
+        self.st_img = st_img
+
+    def run(self):
+        img = generate_image_from_text(self.prompt, self.model)
+        # st_img.image(img, caption=model, width=250)
+        self.return_value = (img, self.model, self.st_img)
+
+
+if generate_btn:
+    # result_containers = []
+    threads = []
+    for model, st_img in zip(["flux_12b", "flux_5b"], [image_slot_flux_12b, image_slot_flux_5b]):
+        print("model: ", model)
+        # result_containers.append(st.container())
+        threads.append(DisplayImage(prompt, model, st_img))
+
+    for thread in threads:
+        thread.start()
+    thread_lives = [True] * len(threads)
+
+    while any(thread_lives):
+        for i, thread in enumerate(threads):
+            if thread_lives[i] and not thread.is_alive():
+                img, model, st_img = thread.return_value
+                # with result_containers[i]:
+                st_img.image(img, caption=model, width=250)
+                # result_containers[i].write(thread.return_value)
+                thread_lives[i] = False
+        time.sleep(1)
+
+    for thread in threads:
+        thread.join()
+
+    # if prompt:
+    #     # Display a processing message
+    #     with st.spinner("Generating image..."):
+    #         image_slot_flux_12b.image(placeholder_image, caption="", width=250)
+    #         image_slot_flux_5b.image(placeholder_image, caption="", width=250)
+    #         try:
+    #             generated_image_flux_12b = generate_image_from_text(prompt, "flux_12b")
+    #             generated_image_flux_5b = generate_image_from_text(prompt, "flux_5b")
+    #             status_update.success("Images generated successfully!")
+    #             image_slot_flux_12b.image(generated_image_flux_12b, caption=f"Flux 12B", width=250)
+    #             image_slot_flux_5b.image(generated_image_flux_5b, caption=f"Flux 5B", width=250)
+    #         except requests.exceptions.RequestException as e:
+    #             st.error(f"Error fetching placeholder image: {e}")
+    #         except Exception as e:
+    #             st.error(f"An error occurred during image generation: {e}")
+    # else:
+    #     st.warning("Please enter some text.")
 
